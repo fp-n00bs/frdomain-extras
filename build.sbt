@@ -5,7 +5,6 @@ version in ThisBuild := "0.0.1"
 organization in ThisBuild := "frdomain"
 scalaVersion in ThisBuild := Versions.scalaVersion
 
-
 lazy val catsio = (project in file("./cats-io"))
   .settings(Common.settings: _*)
   .settings(libraryDependencies ++= Dependencies.catsIODependencies)
@@ -36,6 +35,16 @@ lazy val mtl = (project in file("./mtl"))
     addCommandAlias("mtl", "mtl/run")
   )
 
+lazy val zio = (project in file("./zio"))
+  .settings(Common.settings: _*)
+  .settings(libraryDependencies ++= Dependencies.zioDependencies)
+
+  .settings (
+    fork in run := true,
+    mainClass in Compile := Some("frdomain.ch6.domain.app.App"),
+    addCommandAlias("zio", "zio/run")
+  )
+
 lazy val root = (project in file(".")).
-    aggregate(catsio, tagless, mtl)
+    aggregate(catsio, tagless, mtl, zio)
 
