@@ -8,24 +8,30 @@ import java.util.Date
 import cats.effect.IO
 import frdomain.ch6.domain.common._
 import frdomain.ch6.domain.model.Account
+import frdomain.ch6.domain.service.{AccountOperation, NonExistingAccount}
+import zio.ZIO
 
 import scala.collection.mutable.{Map => MMap}
 
 class AccountRepositoryInMemory extends AccountRepository {
   lazy val repo = MMap.empty[String, Account]
 
-  def query(no: String): IO[ErrorOr[Option[Account]]] = IO(Right(repo.get(no)))
+  val accountRepository = new AccountRepository.Service {
 
-  def store(a: Account): IO[ErrorOr[Account]] = IO {
-    val _ = repo += ((a.no, a))
-    Right(a)
+    def query(no: String): AccountOperation[Account] =
+      ZIO.fromOption(repo.get(no)).mapError(_ => NonExistingAccount(no))
+
+    def store(a: Account): AccountOperation[Account] = {
+      val _ = repo += ((a.no, a))
+      ZIO.succeed(a)
+    }
+
+    def query(openedOn: Date): AccountOperation[Seq[Account]] = {
+      ZIO.succeed(repo.values.filter(_.dateOfOpen.getOrElse(today) == openedOn).toSeq)
+    }
+
+    def all: AccountOperation[Seq[Account]] = ZIO.succeed(repo.values.toSeq)
   }
-
-  def query(openedOn: Date): IO[ErrorOr[Seq[Account]]] = IO {
-    Right(repo.values.filter(_.dateOfOpen.getOrElse(today) == openedOn).toSeq)
-  }
-
-  def all: IO[ErrorOr[Seq[Account]]] = IO(Right(repo.values.toSeq))
 }
 
 object AccountRepositoryInMemory extends AccountRepositoryInMemory

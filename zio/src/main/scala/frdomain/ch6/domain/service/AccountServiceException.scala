@@ -2,29 +2,47 @@ package frdomain.ch6
 package domain
 package service
 
-import cats.data._
+import java.util.Date
 
-trait AccountServiceException {
-  def message: NonEmptyList[String]
-}
+import frdomain.ch6.domain.model.Account
+import cats.data._
+import frdomain.ch6.domain.common.errors.AppError
+
+trait AccountServiceException extends AppError {
 
 case class AlreadyExistingAccount(no: String) extends AccountServiceException {
-  val message = NonEmptyList.of(s"Already existing account with no $no")
+  override def msg: String = s"Already existing account with no $no"
 }
 
 case class NonExistingAccount(no: String) extends AccountServiceException {
-  val message = NonEmptyList.of(s"No existing account with no $no")
+  override def msg: String = s"No existing account with no $no"
 }
 
 case class ClosedAccount(no: String) extends AccountServiceException {
-  val message = NonEmptyList.of(s"Account with no $no is closed")
+  override def msg: String = s"Account with no $no is closed"
 }
 
 case object RateMissingForSavingsAccount extends AccountServiceException {
-  val message = NonEmptyList.of("Rate needs to be given for savings account")
+  override def msg: String = "Rate needs to be given for savings account"
 }
 
-case class MiscellaneousDomainExceptions(msgs: NonEmptyList[String]) extends AccountServiceException {
-  val message = msgs
+case class NotValidAccountNumber(no: String) extends AccountServiceException {
+  override def msg: String = s"Account No has to be at least 5 characters long: found $no"
 }
 
+case class NotValidClosingDate(od: Date, c: Date) extends AccountServiceException {
+  override def msg: String = s"Close date [$c] cannot be earlier than open date [$od]"
+}
+
+case class NotValidRate(rate: BigDecimal) extends AccountServiceException {
+  override def msg: String = s"Interest rate $rate must be > 0"
+}
+
+case class AccountAlreadyClosed(no: String) extends AccountServiceException {
+  override def msg: String = s"Account ${no} is already closed"
+}
+
+case class NotSufficientAmount(a: Account) extends AccountServiceException {
+  val message = NonEmptyList.of(s"Insufficient amount in ${a.no} to debit")
+}
+}

@@ -4,8 +4,9 @@ package domain
 import cats.data._
 import cats.effect.IO
 import frdomain.ch6.domain.repository.AccountRepository
+import zio.ZIO
 
 package object service {
-  type Valid[A] = EitherT[IO, AccountServiceException, A]
-  type AccountOperation[A] = Kleisli[Valid, AccountRepository, A]
+  type AccountOperation[A] = ZIO[AccountRepository, AccountServiceException, A]
+
 }

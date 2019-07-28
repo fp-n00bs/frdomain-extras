@@ -8,36 +8,36 @@ import cats.implicits._
 import cats.kernel.Order
 import _root_.zio._
 import _root_.zio.syntax._
+import frdomain.ch6.domain.common.errors.{AppError, SystemError}
 
 object common {
   type Amount = BigDecimal
-  type ValidationResult[A] = ValidatedNel[String, A]
-  type ErrorOr[A] = Either[NonEmptyList[String], A]
 
   def today = Calendar.getInstance.getTime
 
+  type PureResult[A] = Either[AppError, A]
+  type IOResult[A] = ZIO[Any, AppError, A]
+
+  object IOResult {
+    def effect[A](error: String)(effect: => A): IOResult[A] = {
+      IO.effect(effect).mapError(ex => SystemError(error, ex))
+    }
+    def effect[A](effect: => A): IOResult[A] = {
+      this.effect("An error occured")(effect)
+    }
+    def effectM[A](error: String)(ioeffect: => IOResult[A]): IOResult[A] = {
+      IO.effect(ioeffect).foldM(
+        ex  => SystemError(error, ex).fail,
+        res => res
+      )
+    }
+    def effectM[A](ioeffect: => IOResult[A]): IOResult[A] = {
+      effectM("An error occured")(ioeffect)
+    }
+  }
   object errors {
 
-    type PureResult[A] = Either[AppError, A]
-    type IOResult[A] = ZIO[Any, AppError, A]
 
-    object IOResult {
-      def effect[A](error: String)(effect: => A): IOResult[A] = {
-        IO.effect(effect).mapError(ex => SystemError(error, ex))
-      }
-      def effect[A](effect: => A): IOResult[A] = {
-        this.effect("An error occured")(effect)
-      }
-      def effectM[A](error: String)(ioeffect: => IOResult[A]): IOResult[A] = {
-        IO.effect(ioeffect).foldM(
-          ex  => SystemError(error, ex).fail
-          , res => res
-        )
-      }
-      def effectM[A](ioeffect: => IOResult[A]): IOResult[A] = {
-        effectM("An error occured")(ioeffect)
-      }
-    }
 
     trait AppError {
       def msg: String

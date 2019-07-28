@@ -8,16 +8,44 @@ import cats.data._
 import cats.effect.IO
 import frdomain.ch6.domain.common._
 import frdomain.ch6.domain.model.{Account, Balance}
+import frdomain.ch6.domain.service.AccountOperation
+import zio.ZIO
 
-trait AccountRepository { 
-  def query(no: String): IO[ErrorOr[Option[Account]]]
-  def store(a: Account): IO[ErrorOr[Account]]
-  def query(openedOn: Date): IO[ErrorOr[Seq[Account]]]
-  def all: IO[ErrorOr[Seq[Account]]]
+trait AccountRepository {
+  def accountRepository: AccountRepository.Service
+}
 
-  def balance(no: String): IO[ErrorOr[Balance]] = query(no).map {
-    case Right(Some(a)) => Right(a.balance)
-    case Right(None) => Left(NonEmptyList.of(s"No account exists with no $no"))
-    case Left(x) => Left(x)
+object AccountRepository {
+
+  trait Service {
+    def query(no: String): AccountOperation[Account]
+
+    def store(a: Account): AccountOperation[Account]
+
+    def query(openedOn: Date): AccountOperation[Seq[Account]]
+
+    def all: AccountOperation[Seq[Account]]
+
+    def balance(no: String): AccountOperation[Balance] = {
+      query(no).map(_.balance)
+    }
+  }
+}
+
+package object accountRepository {
+  def query(no: String): AccountOperation[Account] =
+    ZIO.accessM(_.accountRepository query no)
+
+  def store(a: Account): AccountOperation[Account] =
+    ZIO.accessM(_.accountRepository store a)
+
+  def query(openedOn: Date): AccountOperation[Seq[Account]] =
+    ZIO.accessM(_.accountRepository query openedOn)
+
+  def all: AccountOperation[Seq[Account]] =
+    ZIO.accessM(_.accountRepository all)
+
+  def balance(no: String): AccountOperation[Balance] = {
+    query(no).map(_.balance)
   }
 }

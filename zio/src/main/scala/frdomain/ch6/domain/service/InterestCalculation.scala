@@ -5,5 +5,5 @@ package service
 import cats.data._
 
 trait InterestCalculation[Account, Amount] {
-  def computeInterest: Kleisli[Valid, Account, Amount]
+  //def computeInterest: Kleisli[Valid, Account, Amount]
 }

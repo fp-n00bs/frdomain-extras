@@ -7,51 +7,43 @@ import frdomain.ch6.domain.repository.interpreter.AccountRepositoryInMemory
 import frdomain.ch6.domain.service.interpreter.AccountService._
 import frdomain.ch6.domain.service.interpreter.ReportingService._
 import frdomain.ch6.domain.service.{Checking, Savings}
+import zio.DefaultRuntime
 
-object App {
+object App extends DefaultRuntime {
+
 
   def main(args: Array[String]): Unit = {
-    usecase1()
-    usecase2()
-    usecase3()
+    //usecase1()
+    //   usecase2()
+    // usecase3()
     usecase4()
   }
 
   def usecase1(): Unit = {
-    val opens = 
+    val opens =
       for {
         _ <- open("a1234", "a1name", None, None, Checking)
         _ <- open("a2345", "a2name", None, None, Checking)
-        _ <- open("a3456", "a3name", BigDecimal(5.8).some, None, Savings)
+        _ <- open("a3456", "a3name", Some(BigDecimal(5.8)), None, Savings)
         _ <- open("a4567", "a4name", None, None, Checking)
-        _ <- open("a5678", "a5name", BigDecimal(2.3).some, None, Savings)
+        _ <- open("a5678", "a5name", Some(BigDecimal(2.3)), None, Savings)
       } yield (())
-  
-    val credits = 
+
+    val credits =
       for {
         _ <- credit("a1234", 1000)
         _ <- credit("a2345", 2000)
         _ <- credit("a3456", 3000)
         _ <- credit("a4567", 4000)
       } yield (())
-  
+
     val c = for {
       _ <- opens
       _ <- credits
       a <- balanceByAccount
     } yield a
-  
-    val y = c(new AccountRepositoryInMemory)
 
-    y.value.unsafeRunAsync { 
-      case Left(th) => th.printStackTrace
-      case Right(vs) => vs match {
-        case Left(asex) => println(asex.message)
-        case Right(vals) => vals.foreach(println)
-      }
-    }
-  
-    // (a2345,2000)
+    println(unsafeRunSync(c.provide(new AccountRepositoryInMemory)))
     // (a5678,0)
     // (a3456,3000)
     // (a1234,1000)
@@ -65,15 +57,7 @@ object App {
       a <- balanceByAccount
     } yield a
 
-    val y = c(new AccountRepositoryInMemory)
-
-    y.value.unsafeRunAsync { 
-      case Left(th) => th.printStackTrace
-      case Right(vs) => vs match {
-        case Left(asex) => println(asex.message)
-        case Right(vals) => vals.foreach(println)
-      }
-    }
+    println(unsafeRunSync(c.provide(new AccountRepositoryInMemory)))
     // NonEmptyList(No existing account with no a2345)
   }
 
@@ -85,35 +69,21 @@ object App {
       a <- balanceByAccount
     } yield a
 
-    val y = c(new AccountRepositoryInMemory)
-
-    y.value.unsafeRunAsync { 
-      case Left(th) => th.printStackTrace
-      case Right(vs) => vs match {
-        case Left(asex) => println(asex.message)
-        case Right(vals) => vals.foreach(println)
-      }
-    }
+    println(unsafeRunSync(c.provide(new AccountRepositoryInMemory)))
     // NonEmptyList(Insufficient amount in a1234 to debit)
+    println("-------------------------------")
   }
 
   def usecase4(): Unit = {
     val c = for {
-      a <- open("a134", "a1name", Some(BigDecimal(-0.9)), None, Savings)
+      a <- open("a134", "a1name", BigDecimal(-0.9).some, None, Savings)
       _ <- credit(a.no, 2000)
       _ <- debit(a.no, 4000)
       b <- balanceByAccount
     } yield b
 
-    val y = c(new AccountRepositoryInMemory)
+    println(unsafeRunSync(c.provide(new AccountRepositoryInMemory)))
 
-    y.value.unsafeRunAsync { 
-      case Left(th) => th.printStackTrace
-      case Right(vs) => vs match {
-        case Left(asex) => println(asex.message)
-        case Right(vals) => vals.foreach(println)
-      }
-    }
     // NonEmptyList(Account No has to be at least 5 characters long: found a134, Interest rate -0.9 must be > 0)
   }
 }
