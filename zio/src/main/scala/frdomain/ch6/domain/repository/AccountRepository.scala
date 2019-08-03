@@ -25,7 +25,7 @@ object AccountRepository {
 
     def balance(no: String): ErrorOr[Balance] = {
       query(no).foldM(
-        _    => ZIO.fail(NonExistingAccount(no).msg),
+        _    => ZIO.fail(NonExistingAccount(no)),
         acc  => ZIO.succeed(acc.get.balance))
     }
   }

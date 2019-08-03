@@ -33,7 +33,7 @@ class AccountServiceInterpreter extends AccountService[Account, Amount, Balance]
                             openingDate: Option[Date],
                             accountType: AccountType): ErrorOr[Account] =
 
-    maybeAccount.map(_ => ZIO.fail(AlreadyExistingAccount(no).msg))
+    maybeAccount.map(_ => ZIO.fail(AlreadyExistingAccount(no)))
       .getOrElse(createOrUpdate(no, name, rate, openingDate, accountType))
 
 
@@ -46,19 +46,19 @@ class AccountServiceInterpreter extends AccountService[Account, Amount, Balance]
 
       case Checking => createOrUpdate(Account.checkingAccount(no, name, openingDate, None, Balance()))
       case Savings => rate.map(r => createOrUpdate(Account.savingsAccount(no, name, r, openingDate, None, Balance())))
-        .getOrElse(ZIO.fail(RateMissingForSavingsAccount.msg))
+        .getOrElse(ZIO.fail(RateMissingForSavingsAccount(no)))
     }
 
   private def createOrUpdate(errorOrAccount: ErrorOr[Account]): ErrorOr[Account] =
     errorOrAccount.foldM(
-      err => ZIO.fail(MiscellaneousDomainExceptions(err).msg),
+      err => ZIO.fail(MiscellaneousDomainExceptions(NonEmptyList.of(err.toString))),
       acc => store(acc))
 
   def close(no: String, closeDate: Option[Date]): ErrorOr[Account] = {
     for {
       maybeAccount <- query(no)
       account      <- maybeAccount.map(a => createOrUpdate(Account.close(a, closeDate.getOrElse(today))))
-                   .getOrElse(ZIO.fail(NonExistingAccount(no).msg))
+                   .getOrElse(ZIO.fail(NonExistingAccount(no)))
     } yield account
   }
 
@@ -76,7 +76,7 @@ class AccountServiceInterpreter extends AccountService[Account, Amount, Balance]
       maybeAccount <- query(no)
       multiplier = if (debitCredit == D) (-1) else 1
       account      <- maybeAccount.map(a => createOrUpdate(Account.updateBalance(a, multiplier * amount)))
-        .getOrElse(ZIO.fail(NonExistingAccount(no).msg))
+        .getOrElse(ZIO.fail(NonExistingAccount(no)))
     } yield account
 
 }
