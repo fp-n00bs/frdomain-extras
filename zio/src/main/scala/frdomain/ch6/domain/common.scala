@@ -14,10 +14,10 @@ object common {
   type Amount = BigDecimal
 
   def today = Calendar.getInstance.getTime
-  val validationOk = ZIO.succeed("")
+  val valid = ZIO.succeed("")
 
   type ErrorOr[A] = ZIO[AccountRepository, AppException, A] //DPDPDP hur losa med Generic for repo?
-  type Validation = IO[String, String]
+  //type Validation = IO[String, String]
 
   final case class Accumulated[E <: AppException](all: NonEmptyList[E]) extends AppException {
     def msg = all.map(_.fullMsg).toList.mkString(" ; ")
