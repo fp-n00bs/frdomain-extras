@@ -9,13 +9,13 @@ import frdomain.ch6.domain.service.interpreter.ReportingService._
 import frdomain.ch6.domain.service.{Checking, Savings}
 import zio.DefaultRuntime
 
+
 object App extends DefaultRuntime {
 
-
   def main(args: Array[String]): Unit = {
-    //usecase1()
-    //   usecase2()
-    // usecase3()
+    usecase1()
+    usecase2()
+    usecase3()
     usecase4()
   }
 
@@ -43,7 +43,11 @@ object App extends DefaultRuntime {
       a <- balanceByAccount
     } yield a
 
-    println(unsafeRunSync(c.provide(new AccountRepositoryInMemory)))
+    unsafeRunSync(c.provide(new AccountRepositoryInMemory)).fold(
+      err => println(err),
+      res => res.foreach(println)
+    )
+    // (a2345,2000)
     // (a5678,0)
     // (a3456,3000)
     // (a1234,1000)
@@ -57,7 +61,10 @@ object App extends DefaultRuntime {
       a <- balanceByAccount
     } yield a
 
-    println(unsafeRunSync(c.provide(new AccountRepositoryInMemory)))
+    unsafeRunSync(c.provide(new AccountRepositoryInMemory)).fold(
+      err => println(err),
+      res => res.foreach(println)
+    )
     // NonEmptyList(No existing account with no a2345)
   }
 
@@ -69,9 +76,11 @@ object App extends DefaultRuntime {
       a <- balanceByAccount
     } yield a
 
-    println(unsafeRunSync(c.provide(new AccountRepositoryInMemory)))
+    unsafeRunSync(c.provide(new AccountRepositoryInMemory)).fold(
+      err => println(err),
+      res => res.foreach(println)
+    )
     // NonEmptyList(Insufficient amount in a1234 to debit)
-    println("-------------------------------")
   }
 
   def usecase4(): Unit = {
@@ -82,8 +91,10 @@ object App extends DefaultRuntime {
       b <- balanceByAccount
     } yield b
 
-    println(unsafeRunSync(c.provide(new AccountRepositoryInMemory)))
-
+    unsafeRunSync(c.provide(new AccountRepositoryInMemory)).fold(
+      err => println(err),
+      res => res.foreach(println)
+    )
     // NonEmptyList(Account No has to be at least 5 characters long: found a134, Interest rate -0.9 must be > 0)
   }
 }

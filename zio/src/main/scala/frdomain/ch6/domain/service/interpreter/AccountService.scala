@@ -18,54 +18,66 @@ class AccountServiceInterpreter extends AccountService[Account, Amount, Balance]
            name: String,
            rate: Option[BigDecimal],
            openingDate: Option[Date],
-           accountType: AccountType): AccountOperation[Account] = {
+           accountType: AccountType): ErrorOr[Account] = {
 
-    query(no).foldM(
-      _ => openAccount(no, name, rate, openingDate, accountType),
-      _ => ZIO.fail(AlreadyExistingAccount(no))
-    )
+    for {
+      maybeAccount   <- query(no)
+      account        <- doOpenAccount(maybeAccount, no, name, rate, openingDate, accountType)
+    } yield account
   }
 
-  private def openAccount(no: String,
-                          name: String,
-                          rate: Option[BigDecimal],
-                          openingDate: Option[Date],
-                          accountType: AccountType) : AccountOperation[Account] = {
+  private def doOpenAccount(maybeAccount: Option[Account],
+                            no: String,
+                            name: String,
+                            rate: Option[BigDecimal],
+                            openingDate: Option[Date],
+                            accountType: AccountType): ErrorOr[Account] =
+
+    maybeAccount.map(_ => ZIO.fail(AlreadyExistingAccount(no).msg))
+      .getOrElse(createOrUpdate(no, name, rate, openingDate, accountType))
+
+
+  private def createOrUpdate(no: String,
+                             name: String,
+                             rate: Option[BigDecimal],
+                             openingDate: Option[Date],
+                             accountType: AccountType): ErrorOr[Account] =
     accountType match {
 
       case Checking => createOrUpdate(Account.checkingAccount(no, name, openingDate, None, Balance()))
-
-      case Savings  => rate.map { r =>
-        createOrUpdate(Account.savingsAccount(no, name, r, openingDate, None, Balance()))
-      } getOrElse {
-        ZIO.fail(RateMissingForSavingsAccount)
-      }
+      case Savings => rate.map(r => createOrUpdate(Account.savingsAccount(no, name, r, openingDate, None, Balance())))
+        .getOrElse(ZIO.fail(RateMissingForSavingsAccount.msg))
     }
+
+  private def createOrUpdate(errorOrAccount: ErrorOr[Account]): ErrorOr[Account] =
+    errorOrAccount.foldM(
+      err => ZIO.fail(MiscellaneousDomainExceptions(err).msg),
+      acc => store(acc))
+
+  def close(no: String, closeDate: Option[Date]): ErrorOr[Account] = {
+    for {
+      maybeAccount <- query(no)
+      account      <- maybeAccount.map(a => createOrUpdate(Account.close(a, closeDate.getOrElse(today))))
+                   .getOrElse(ZIO.fail(NonExistingAccount(no).msg))
+    } yield account
   }
 
-  private def createOrUpdate(accountOp: AccountOperation[Account]) : AccountOperation[Account] =
-    accountOp.flatMap(store(_))
-
-  def close(no: String, closeDate: Option[Date]) : AccountOperation[Account]  = {
-    val cd = closeDate.getOrElse(today)
-    createOrUpdate(Account.close(no, cd))
-  }
-
-  def debit(no: String, amount: Amount) = up(no, amount, D)
-  def credit(no: String, amount: Amount) = up(no, amount, C)
+  def balance(no: String): ErrorOr[Balance] = balance(no)
 
   private trait DC
-  private case object D extends DC
-  private case object C extends DC
+  private object D extends DC
+  private object C extends DC
 
-  private def up(no: String, amount: Amount, debitCredit: DC) : AccountOperation[Account] =
+  def debit(no: String, amount: Amount): ErrorOr[Account] = update(no, amount, D)
+  def credit(no: String, amount: Amount): ErrorOr[Account] = update(no, amount, C)
+
+  private def update(no: String, amount: Amount, debitCredit: DC): ErrorOr[Account] =
     for {
-      maybeAccount   <- query(no)
+      maybeAccount <- query(no)
       multiplier = if (debitCredit == D) (-1) else 1
-      account        <- createOrUpdate(Account.updateAmount(maybeAccount, multiplier * amount))
+      account      <- maybeAccount.map(a => createOrUpdate(Account.updateBalance(a, multiplier * amount)))
+        .getOrElse(ZIO.fail(NonExistingAccount(no).msg))
     } yield account
 
-  def balance(no: String): AccountOperation[Balance] = AccountService.balance(no)
 }
-
 object AccountService extends AccountServiceInterpreter

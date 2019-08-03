@@ -4,111 +4,115 @@ package model
 
 import java.util.Date
 
-import cats.implicits._
+import cats.syntax.apply.{catsSyntaxTuple2Semigroupal, catsSyntaxTuple3Semigroupal}
+import cats.syntax.option.catsSyntaxOptionId
+import cats.syntax.validated.catsSyntaxValidatedId
 import frdomain.ch6.domain.common._
-import frdomain.ch6.domain.repository.accountRepository.query
-import frdomain.ch6.domain.service._
 import zio.ZIO
 
 case class Balance(amount: Amount = 0)
 
 sealed trait Account {
-
   def no: String
-
   def name: String
-
   def dateOfOpen: Option[Date]
-
   def dateOfClose: Option[Date]
-
   def balance: Balance
 }
 
-private final case class CheckingAccount(no: String, name: String,
-                                         dateOfOpen: Option[Date], dateOfClose: Option[Date] = None, balance: Balance = Balance()) extends Account
+final case class CheckingAccount (no: String, name: String,
+                                  dateOfOpen: Option[Date], dateOfClose: Option[Date] = None, balance: Balance = Balance()) extends Account
 
-private final case class SavingsAccount(no: String, name: String, rateOfInterest: Amount,
-                                        dateOfOpen: Option[Date], dateOfClose: Option[Date] = None, balance: Balance = Balance()) extends Account
+final case class SavingsAccount (no: String, name: String, rateOfInterest: Amount,
+                                 dateOfOpen: Option[Date], dateOfClose: Option[Date] = None, balance: Balance = Balance()) extends Account
 
 object Account {
 
-  private def validateAccountNo(no: String): PureResult[String] =
-    if (no.isEmpty || no.size < 5) Left(NotValidAccountNumber(no))
-    else Right(no)
+  private def validateAccountNo(no: String): ValidationResult[String] =
+    if (no.isEmpty || no.size < 5) NotValidAccountNumber(no).toInvalidNel
+    else no.validNel
 
-
-  private def validateOpenCloseDate(od: Date, cd: Option[Date]): PureResult[Option[Date]] =
+  private def validateOpenCloseDate(od: Date, cd: Option[Date]): ValidationResult[(Option[Date], Option[Date])] =
     cd.map { c =>
-      if (c before od) Left(NotValidClosingDate(od, c))
-      else Right(cd)
-    }.getOrElse(Right(cd))
+    if (c before od) NotValidClosingDate(od, c).toInvalidNel
+    else (od.some, cd).validNel
+  }.getOrElse { (od.some, cd).validNel }
 
-
-  private def validateRate(rate: BigDecimal): AccountOperation[BigDecimal] =
-    if (rate <= BigDecimal(0)) ZIO.fail(NotValidRate(rate))
-    else ZIO.succeed(rate)
+  private def validateRate(rate: BigDecimal): ValidationResult[BigDecimal] =
+    if (rate <= BigDecimal(0)) NotValidRate(rate).toInvalidNel
+    else rate.validNel
 
   def checkingAccount(no: String, name: String, openDate: Option[Date], closeDate: Option[Date],
-                      balance: Balance): AccountOperation[Account] =
-    for {
-      _     <- validateAccountNo(no)
-      _     <- validateOpenCloseDate(openDate.getOrElse(today), closeDate)
-    } yield CheckingAccount(no, name, openDate, closeDate, balance)
+                      balance: Balance): ErrorOr[Account]  = {
+
+    ZIO.fromEither(
+    (
+      validateAccountNo(no),
+      validateOpenCloseDate(openDate.getOrElse(today), closeDate)
+
+    ).mapN {(n, d) =>
+      CheckingAccount(n, name, d._1, d._2, balance)
+    }.toEither)
+  }
 
   def savingsAccount(no: String, name: String, rate: BigDecimal, openDate: Option[Date],
-                     closeDate: Option[Date], balance: Balance): AccountOperation[Account] =
-    for {
-      _     <- validateAccountNo(no)
-      _     <- validateOpenCloseDate(openDate.getOrElse(today), closeDate)
-      _     <- validateRate(rate)
-    } yield SavingsAccount(no, name, rate, openDate, closeDate, balance)
+                     closeDate: Option[Date], balance: Balance): ErrorOr[Account] = {
+    ZIO.fromEither(
+    (
+      validateAccountNo(no),
+      validateOpenCloseDate(openDate.getOrElse(today), closeDate),
+      validateRate(rate)
 
-  private def validateAccountAlreadyClosed(a: Account) : PureResult[Account] = {
-    if (a.dateOfClose isDefined) Left(AccountAlreadyClosed(a.no))
-    else Right(a)
+    ).mapN{(n, d, r) =>
+      SavingsAccount(n, name, r, d._1, d._2, balance)
+    }.toEither)
   }
 
-  private def validateCloseDate(a: Account, cd: Date) : AccountOperation[Date] = {
-    if (cd before a.dateOfOpen.get) ZIO.fail(NotValidClosingDate(a.dateOfOpen.get, cd))
-    else ZIO.succeed(cd)
+  private def validateAccountAlreadyClosed(a: Account): ValidationResult[Account] = {
+    if (a.dateOfClose isDefined) AccountAlreadyClosed(a.no).toInvalidNel
+    else a.validNel
   }
 
-  private def updateClosingDate(a: Account, someDate: Some[Date]): Account = {
-    a match {
-      case c: CheckingAccount => c.copy(dateOfClose = someDate)
-      case s: SavingsAccount => s.copy(dateOfClose = someDate)
-    }
+  private def validateCloseDate(a: Account, cd: Date): ValidationResult[Date] = {
+    if (cd before a.dateOfOpen.get) NotValidClosingDate(a.dateOfOpen.get, cd).toInvalidNel
+    else cd.validNel
   }
 
-  def close(no: String, closeDate: Date): AccountOperation[Account] = {
-    for {
-      acc   <- query(no)
-      _     <- validateAccountAlreadyClosed(acc)
-      _     <- validateCloseDate(acc, closeDate)
-    } yield updateClosingDate(acc, Some(closeDate))
+  def close(a: Account, closeDate: Date): ErrorOr[Account] = {
+    ZIO.fromEither(
+      (
+        validateAccountAlreadyClosed(a),
+        validateCloseDate(a, closeDate)
+
+      ).mapN { (acc, _) =>
+          acc match {
+            case c: CheckingAccount => c.copy(dateOfClose = Some(closeDate))
+            case s: SavingsAccount => s.copy(dateOfClose = Some(closeDate))
+          }
+        }.toEither)
   }
 
-  private def checkBalance(a: Account, amount: Amount):AccountOperation[Account] = {
-    if (amount < 0 && a.balance.amount < -amount) ZIO.fail(NotSufficientAmount(a))
-    else ZIO.succeed(a)
+  private def checkBalance(a: Account, amount: Amount): ValidationResult[Account] = {
+    if (amount < 0 && a.balance.amount < -amount) NotSufficientAmount(a).toInvalidNel
+    else a.validNel
   }
 
-  def updateAmount(a: Account, amount: Amount): AccountOperation[Account] = for {
-    _     <- validateAccountAlreadyClosed(a)
-    _     <- checkBalance(a, amount)
-    _     <- updateBalance(a, amount)
-  } yield (a)
+  def updateBalance(a: Account, amount: Amount): ErrorOr[Account] = {
+    ZIO.fromEither(
+      (
+        validateAccountAlreadyClosed(a),
+        checkBalance(a, amount)
 
-  private def updateBalance(a: Account, amount: Amount): PureResult[Account] = {
-    Right(a match {
-      case c: CheckingAccount => c.copy(balance = Balance(c.balance.amount + amount))
-      case s: SavingsAccount => s.copy(balance = Balance(s.balance.amount + amount))
-    })
+      ).mapN { (_, _) =>
+        a match {
+          case c: CheckingAccount => c.copy(balance = Balance(c.balance.amount + amount))
+          case s: SavingsAccount => s.copy(balance = Balance(s.balance.amount + amount))
+        }
+      }.toEither)
   }
 
   def rate(a: Account) = a match {
-    case SavingsAccount(_, _, r, _, _, _) => Some(r)
+    case SavingsAccount(_, _, r, _, _, _) => r.some
     case _ => None
   }
 }
