@@ -11,21 +11,20 @@ import scala.collection.JavaConverters._
 object WordCount extends DefaultRuntime {
 
   def main(args: Array[String]): Unit = {
-    val path = "C:/Users/danp/IdeaProjects/frdomain-extras/zio/src/main/resources/"
+    val path = "C:/Users/Dan/IdeaProjects/frdomain-extras-noobs/zio/src/main/resources"
     unsafeRun(countAllWords(path, 5))
     Thread.sleep(10000)
   }
 
-    def countAllWords(dir: String, workers: Int) =
-      for {
-        inputQueue  <- Queue.bounded[Path](16)
-        reduceQueue <- Queue.bounded[Long](16)
-        outputQueue <- Queue.bounded[Long](16)
-        paths <- listFiles(dir)
-        _ <- inputQueue.offerAll(paths)
-        _ <- MapReduce.mapReduce(inputQueue, reduceQueue, outputQueue, readContents, workers) (_.split(' ').size)(0L)(_ + _).fork
-        _ <- printer(outputQueue)
-      } yield ()
+  def countAllWords(dir: String, workers: Int) =
+    for {
+      inputQueue  <- Queue.bounded[Path](16)
+      reduceQueue <- Queue.bounded[Long](16)
+      outputQueue <- Queue.bounded[Long](16)
+      files       <- listFiles(dir)
+      _           <- MapReduce.mapReduce(files, inputQueue, reduceQueue, outputQueue, workers)(readContents(_))(_.split(' ').size)(0L)(_ + _).fork
+      _           <- printer(outputQueue)
+    } yield ()
 
   def listFiles(dir: String): ZIO[Blocking, Throwable, List[Path]] =
     effectBlocking {
@@ -33,9 +32,9 @@ object WordCount extends DefaultRuntime {
     }
 
   def readContents(path: Path): String =
-      new String(
-        Files.readAllBytes(path), //DPDPDP lagg till bracket
-        "UTF-8") //DPDPDP fiza sa att EffactivBlocking anvands
+    new String(
+      Files.readAllBytes(path), //DPDPDP lagg till bracket
+      "UTF-8") //DPDPDP fiza sa att EffactivBlocking anvands
 
 
   def printer(queue: Queue[Long]) =
