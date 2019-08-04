@@ -23,8 +23,9 @@ trait AccountService[Account, Amount, Balance] {
 
   def balance(no: String): ErrorOr[Balance]
 
-  def transfer(from: String, to: String, amount: Amount): ErrorOr[(Account, Account)] = for {
-    a <- debit(from, amount)
+  def transfer(from: String, to: String, amount: Amount): ErrorOr[(Account, Account)] =
+    for {
+    a <- debit(from, amount) //DPDPDP StM
     b <- credit(to, amount)
   } yield ((a, b))
 }

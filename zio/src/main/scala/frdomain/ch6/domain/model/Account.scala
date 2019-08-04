@@ -9,6 +9,7 @@ import cats.syntax.apply.{catsSyntaxTuple2Semigroupal, catsSyntaxTuple3Semigroup
 import cats.syntax.option.catsSyntaxOptionId
 import cats.syntax.validated.catsSyntaxValidatedId
 import frdomain.ch6.domain.common._
+import frdomain.ch6.domain.model
 import frdomain.ch6.domain.model.Account.{rate, validateAccountNo, validateOpenCloseDate, validateRate}
 import zio.{IO, UIO, ZIO}
 
@@ -44,17 +45,17 @@ object Account {
       _   <- validateAccountNo(no)
       _   <- validateOpenCloseDate(openDate.getOrElse(today), closeDate)
       _   <- validateRate(rate)
-      acc = CheckingAccount(no, name, openDate, closeDate, balance)
+      acc = SavingsAccount(no, name, rate, openDate, closeDate, balance)
     } yield acc
 
   def close(a: Account, closeDate: Date): ErrorOr[Account] =
     for {
-      _ <- validateAccountAlreadyClosed(a)
-      _ <- validateCloseDate(a, closeDate)
-    } yield a match {
+      _   <- validateAccountAlreadyClosed(a)
+      _   <- validateCloseDate(a, closeDate)
+      acc = a match {
         case c: CheckingAccount => c.copy(dateOfClose = Some(closeDate))
         case s: SavingsAccount => s.copy(dateOfClose = Some(closeDate))
-      }
+      }} yield acc
 
   private def checkBalance(a: Account, amount: Amount): ErrorOr[Account] =
     if (amount < 0 && a.balance.amount < -amount) ZIO.fail(NotSufficientAmount(a))
@@ -62,12 +63,12 @@ object Account {
 
   def updateBalance(a: Account, amount: Amount): ErrorOr[Account] =
     for {
-      _ <- validateAccountAlreadyClosed(a)
-      _ <- checkBalance(a, amount)
-    } yield a match {
+      _   <- validateAccountAlreadyClosed(a)
+      _   <- checkBalance(a, amount)
+      acc = a match {
         case c: CheckingAccount => c.copy(balance = Balance(c.balance.amount + amount))
         case s: SavingsAccount => s.copy(balance = Balance(s.balance.amount + amount))
-      }
+      }} yield acc
 
   def rate(a: Account) = a match {
     case SavingsAccount(_, _, r, _, _, _) => r.some

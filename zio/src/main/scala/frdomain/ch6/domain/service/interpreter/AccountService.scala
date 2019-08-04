@@ -50,9 +50,7 @@ class AccountServiceInterpreter extends AccountService[Account, Amount, Balance]
     }
 
   private def createOrUpdate(errorOrAccount: ErrorOr[Account]): ErrorOr[Account] =
-    errorOrAccount.foldM(
-      err => ZIO.fail(MiscellaneousDomainExceptions(NonEmptyList.of(err.toString))),
-      acc => store(acc))
+    errorOrAccount.flatMap(store(_))
 
   def close(no: String, closeDate: Option[Date]): ErrorOr[Account] = {
     for {
