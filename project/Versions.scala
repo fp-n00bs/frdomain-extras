@@ -1,5 +1,5 @@
 object Versions {
-  val zioVersion = "1.0.0-RC10-1"
+  val zioVersion = "1.0.0-RC8-12"
   val catsVersion = "1.4.0"
   val catsEffectVersion = "1.0.0"
   val catsMtlVersion = "0.4.0"
