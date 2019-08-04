@@ -8,18 +8,11 @@ import zio.blocking._
 
 object MapReduce  {
 
-  def readContents(path: Path): ZIO[Blocking, Throwable, String] =
-    effectBlocking {
-      new String(
-        Files.readAllBytes(path),
-        "UTF-8"
-      )
-    }
-    private def createMapWorker[A](inputQueue: Queue[Path], reduceQueue: Queue[A])(map: String => A) =
+    private def createMapWorker[A, B, D](inputQueue: Queue[A], reduceQueue: Queue[B], contents :(A) => D )(map: D => B) =
       (for {
-        path <- inputQueue.take
-        contents <- readContents(path)
-        a = map(contents)
+        source <- inputQueue.take
+        content = contents.apply(source)
+        a = map(content)
         _ <- reduceQueue.offer(a)
       } yield ()).forever.fork
 
@@ -33,10 +26,10 @@ object MapReduce  {
         _ <- outputQueue.offer(newB)
       } yield ()).forever.fork
 
-    def mapReduce[A, B](inputQueue: Queue[Path], reduceQueue: Queue[A], outputQueue: Queue[B], workers: Int)
-                       (map: String => A)
-                       (z: B)(reduce: (B, A) => B): ZIO[Blocking, Throwable, Unit] = {
-      val mapWorkers = List.fill(workers)(createMapWorker(inputQueue, reduceQueue)(map))
+    def mapReduce[A, B, C, D](inputQueue: Queue[A], reduceQueue: Queue[B], outputQueue: Queue[C], contents :(A) => D, workers: Int)
+                       (map: D => B)
+                       (z: C)(reduce: (C, B) => C): ZIO[Blocking, Throwable, Unit] = {
+      val mapWorkers = List.fill(workers)(createMapWorker(inputQueue, reduceQueue, contents :(A) => D)(map))
       val reduceWorker =
         for {
           bRef <- Ref.make(z)
