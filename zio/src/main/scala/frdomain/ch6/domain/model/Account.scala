@@ -36,8 +36,7 @@ object Account {
     for {
       _   <- validateAccountNo(no)
       _   <- validateOpenCloseDate(openDate.getOrElse(today), closeDate)
-      acc = CheckingAccount(no, name, openDate, closeDate, balance)
-    } yield acc
+    } yield CheckingAccount(no, name, openDate, closeDate, balance)
 
   def savingsAccount(no: String, name: String, rate: BigDecimal, openDate: Option[Date],
                      closeDate: Option[Date], balance: Balance): ErrorOr[Account] =
@@ -45,17 +44,16 @@ object Account {
       _   <- validateAccountNo(no)
       _   <- validateOpenCloseDate(openDate.getOrElse(today), closeDate)
       _   <- validateRate(rate)
-      acc = SavingsAccount(no, name, rate, openDate, closeDate, balance)
-    } yield acc
+    } yield SavingsAccount(no, name, rate, openDate, closeDate, balance)
 
   def close(a: Account, closeDate: Date): ErrorOr[Account] =
     for {
       _   <- validateAccountAlreadyClosed(a)
       _   <- validateCloseDate(a, closeDate)
-      acc = a match {
+    } yield a match {
         case c: CheckingAccount => c.copy(dateOfClose = Some(closeDate))
         case s: SavingsAccount => s.copy(dateOfClose = Some(closeDate))
-      }} yield acc
+      }
 
   private def checkBalance(a: Account, amount: Amount): ErrorOr[Account] =
     if (amount < 0 && a.balance.amount < -amount) ZIO.fail(NotSufficientAmount(a))
@@ -65,10 +63,10 @@ object Account {
     for {
       _   <- validateAccountAlreadyClosed(a)
       _   <- checkBalance(a, amount)
-      acc = a match {
+    } yield a match {
         case c: CheckingAccount => c.copy(balance = Balance(c.balance.amount + amount))
         case s: SavingsAccount => s.copy(balance = Balance(s.balance.amount + amount))
-      }} yield acc
+      }
 
   def rate(a: Account) = a match {
     case SavingsAccount(_, _, r, _, _, _) => r.some
